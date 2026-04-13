@@ -20,6 +20,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
+        // Prevent automatic termination
+        ProcessInfo.processInfo.disableAutomaticTermination("NotchAgent must stay running")
+
         // Install bridge binary
         installBridge()
 

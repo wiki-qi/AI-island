@@ -119,6 +119,9 @@ struct TerminalInfo: Codable {
     var windowId: Int?
     var tabIndex: Int?
     var paneId: String?
+    var tty: String?
+    var workingDirectory: String?
+    var paneTitle: String?
 }
 
 enum TerminalApp: String, Codable {

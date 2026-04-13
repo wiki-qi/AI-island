@@ -84,6 +84,11 @@ final class SessionManager: ObservableObject {
         sessions[idx].updatedAt = Date()
         sessions[idx].inactivePolls = 0
 
+        // Update terminal info if payload has newer cwd
+        if let cwd = extractString("cwd", from: message.payload), !cwd.isEmpty {
+            sessions[idx].terminal.workingDirectory = cwd
+        }
+
         // If session was completed but new activity arrives, revive it
         if sessions[idx].phase == .completed {
             sessions[idx].phase = .running
@@ -202,12 +207,33 @@ final class SessionManager: ObservableObject {
 
         let termName = extractString("terminal_app", from: payload)
             ?? extractString("terminal", from: payload) ?? ""
-        let termApp = TerminalApp(rawValue: termName) ?? .terminal
+        let termApp: TerminalApp
+        if let parsed = TerminalApp(rawValue: termName) {
+            termApp = parsed
+        } else {
+            // Auto-detect from frontmost app
+            termApp = Self.detectFrontmostTerminal()
+        }
+
+        // Extract terminal jump info from payload
+        let cwd = extractString("cwd", from: payload)
+        let paneId = extractString("terminal_session_id", from: payload)
+            ?? extractString("pane_id", from: payload)
+        let tty = extractString("tty", from: payload)
+        let paneTitle = extractString("pane_title", from: payload)
+            ?? extractString("session_name", from: payload)
+            ?? source  // fallback to agent source name (claude/codex/gemini/kiro)
+
+        var termInfo = TerminalInfo(app: termApp)
+        termInfo.workingDirectory = cwd
+        termInfo.paneId = paneId
+        termInfo.tty = tty
+        termInfo.paneTitle = paneTitle
 
         let session = AgentSession(
             agentType: agentType,
             name: String(name.prefix(40)),
-            terminal: TerminalInfo(app: termApp)
+            terminal: termInfo
         )
 
         sessions.append(session)
@@ -240,6 +266,23 @@ final class SessionManager: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    private static let bundleToTerminal: [String: TerminalApp] = [
+        "com.mitchellh.ghostty": .ghostty,
+        "com.googlecode.iterm2": .iterm2,
+        "com.apple.Terminal": .terminal,
+        "dev.warp.Warp-Stable": .warp,
+        "com.microsoft.VSCode": .vscode,
+        "com.todesktop.230313mzl4w4u92": .cursor,
+        "io.alacritty": .alacritty,
+        "net.kovidgoyal.kitty": .kitty,
+    ]
+
+    private static func detectFrontmostTerminal() -> TerminalApp {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication,
+              let bundleId = frontApp.bundleIdentifier else { return .terminal }
+        return bundleToTerminal[bundleId] ?? .terminal
+    }
 
     private func extractString(_ key: String, from payload: [String: AnyCodable]) -> String? {
         guard let val = payload[key] else { return nil }

@@ -19,16 +19,21 @@ final class SoundManager {
 
         let selected = UserDefaults.standard.string(forKey: "selectedSound") ?? "Tink"
 
-        // Use selected sound for most events, specific sounds for important ones
-        let name: NSSound.Name
+        let name: String
         switch sound {
-        case .sessionStart:     name = NSSound.Name(selected)
+        case .sessionStart:     name = selected
         case .sessionComplete:  name = "Glass"
         case .approvalNeeded:   name = "Sosumi"
         case .approved:         name = "Pop"
         case .denied:           name = "Basso"
         }
 
-        NSSound(named: name)?.play()
+        // Use file path to avoid FSFindFolder errors in non-bundled apps
+        DispatchQueue.main.async {
+            let path = "/System/Library/Sounds/\(name).aiff"
+            if let s = NSSound(contentsOfFile: path, byReference: true) {
+                s.play()
+            }
+        }
     }
 }
